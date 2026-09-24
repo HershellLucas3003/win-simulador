@@ -129,6 +129,42 @@ Guarde a nova senha numérica que o segundo comando mostrar.
    ```
 8. Configure o simulador em uma porta (ex.: COM10) e o sistema consumidor na outra (COM11).
 
+## Religar o BitLocker mantendo o com0com
+
+O com0com 3.0 só carrega com `testsigning` ligado, e o `testsigning` só é aceito com o Secure Boot desligado. Então, enquanto for usar o com0com, **o Secure Boot fica desligado**. O BitLocker funciona normalmente assim: quando a proteção volta, o TPM é lacrado com o estado atual (Secure Boot desligado e Modo de Teste).
+
+1. Se a descriptografia estiver em andamento, volte a criptografar:
+   ```powershell
+   manage-bde -on C:
+   ```
+2. Reative a proteção:
+   ```powershell
+   Resume-BitLocker -MountPoint C:
+   ```
+   Se o disco já estava totalmente descriptografado, use os comandos de [Reativar depois](#reativar-depois) no lugar dos passos 1 e 2.
+3. Confira os protetores e guarde a senha numérica fora do PC:
+   ```powershell
+   manage-bde -protectors -get C:
+   ```
+   Se houver mais de uma senha numérica, apague as que não vai usar:
+   ```powershell
+   manage-bde -protectors -delete C: -id "{ID-DA-SENHA}"
+   ```
+4. Acompanhe até `Totalmente Criptografado` e `Proteção Ativada`:
+   ```powershell
+   manage-bde -status C:
+   ```
+5. Reinicie uma vez e confirme que o Windows sobe sem pedir a chave e que as portas continuam lá:
+   ```powershell
+   [System.IO.Ports.SerialPort]::GetPortNames()
+   ```
+
+Com o BitLocker ativo, **sempre suspenda antes** de mexer na BIOS ou no `bcdedit` (inclusive para desligar o `testsigning` ou religar o Secure Boot):
+
+```powershell
+Suspend-BitLocker -MountPoint C: -RebootCount 2
+```
+
 ## Comandos úteis do setupc
 
 | Comando | Efeito |
