@@ -8,18 +8,26 @@ simulador  <-->  COM10  <==com0com==>  COM11  <-->  sistema que lê o WIM
 
 Instalação: `C:\Program Files (x86)\com0com` (com0com 3.0, driver **não assinado**).
 
-## Status em 2026-09-24
+## Status em 2026-09-24 (máquina HERSHELL-TRCV)
 
 | Item | Estado |
 |---|---|
 | com0com instalado | Sim |
-| Par configurado | `CNCA2 PortName=COM10,EmuBR=yes` / `CNCB2 PortName=COM11,EmuBR=yes` |
-| Pares extras (0, 1, 3) | Removidos |
-| Barramento `ROOT\COM0COM\0002` | `Error`: driver bloqueado pelo Windows |
-| `GetPortNames()` | Vazio |
-| BitLocker em C: | Ativo (TPM com PCR 7, 11). Suspenso com `-RebootCount 2` |
-| `bcdedit /set testsigning on` | Falhou: "protegido pela política de Inicialização Segura" |
-| Secure Boot | **Ainda ligado**. Próximo passo: desligar na BIOS |
+| Secure Boot | Desligado |
+| `bcdedit /set testsigning on` | Aplicado (Modo de Teste) |
+| Dispositivos com0com | `OK` |
+| `GetPortNames()` | `COM10`, `COM11` |
+| Par em uso | `CNCA2 PortName=COM10,EmuBR=yes` / `CNCB2 PortName=COM11,EmuBR=yes` |
+| BitLocker em C: | Descriptografia completa em andamento (opção B) |
+
+Se `.\setupc.exe list` mostrar mais de um par com COM10/COM11, remova os extras (`.\setupc.exe remove N`) e deixe só um.
+
+Depois de remover um par duplicado, uma das portas pode sumir do `GetPortNames()`, porque o Windows apaga o nome compartilhado do registro. Para corrigir, reinicie a porta:
+
+```powershell
+Get-PnpDevice -InstanceId 'COM0COM\PORT\CNCB2' | Disable-PnpDevice -Confirm:$false
+Get-PnpDevice -InstanceId 'COM0COM\PORT\CNCB2' | Enable-PnpDevice -Confirm:$false
+```
 
 ## Regras importantes
 
@@ -75,6 +83,10 @@ Não mexa na BIOS enquanto a descriptografia estiver em andamento.
 Pela interface: Painel de Controle > Sistema e Segurança > Criptografia de Unidade de Disco BitLocker > Desativar o BitLocker. No Windows 11 Home o caminho é Configurações > Privacidade e segurança > Criptografia do dispositivo > Desativado.
 
 ### Reativar depois
+
+Rode só quando **já tiver terminado de usar o com0com** e o Secure Boot tiver sido religado. A opção A (suspender) não precisa disso: a proteção volta sozinha. Na opção B, espere a descriptografia terminar (`Totalmente Descriptografado`) antes de reativar. Não rode estes comandos no meio do processo.
+
+Se aparecer `Apenas um protetor de chave desse tipo é permitido (0x80310031)`, o TPM ainda está cadastrado, porque a descriptografia não terminou. Espere chegar a 0% e tente de novo.
 
 ```powershell
 Enable-BitLocker -MountPoint C: -TpmProtector -UsedSpaceOnly

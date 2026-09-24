@@ -3,6 +3,7 @@ import type { SerialPortInfo, SerialStatus } from '../../shared/equipment'
 import { Signal } from '../events'
 import { SERIAL_SETTINGS } from '../protocol/constants'
 import type { ByteChannel } from './Transport'
+import { mergePorts, readWindowsRegistryPorts } from './windowsRegistryPorts'
 
 type Callback = (error?: Error | null) => void
 
@@ -41,12 +42,13 @@ export class SerialPortTransport implements ByteChannel {
   constructor(private readonly factory: SerialPortFactory = nodeSerialPortFactory) {}
 
   static async list(): Promise<SerialPortInfo[]> {
-    const ports = await SerialPort.list()
-    return ports.map((port) => ({
+    const [ports, registryPorts] = await Promise.all([SerialPort.list().catch(() => []), readWindowsRegistryPorts()])
+    const detected = ports.map((port) => ({
       path: port.path,
       manufacturer: port.manufacturer ?? null,
       friendlyName: (port as { friendlyName?: string }).friendlyName ?? null,
     }))
+    return mergePorts(detected, registryPorts)
   }
 
   currentStatus(): SerialStatus {
