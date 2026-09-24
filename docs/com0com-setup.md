@@ -29,12 +29,66 @@ Instalação: `C:\Program Files (x86)\com0com` (com0com 3.0, driver **não assin
   - A chave de recuperação tem backup na conta Microsoft: https://account.microsoft.com/devices/recoverykey
 - A ordem é obrigatória: **desligar o Secure Boot na BIOS e só depois rodar o `bcdedit /set testsigning on`**.
 
+## BitLocker
+
+Se o TPM usa o PCR 7 (validação do Secure Boot), qualquer mudança no Secure Boot faz o Windows pedir a chave de recuperação no próximo boot. Resolva o BitLocker **antes** de entrar na BIOS.
+
+### 1. Verificar o estado
+
+```powershell
+manage-bde -status C:
+manage-bde -protectors -get C:
+```
+
+- `Status de Proteção: Proteção Desativada`: nada a fazer, siga para o Secure Boot.
+- `Status de Proteção: Proteção Ativada`: escolha a opção A ou a B abaixo.
+- Anote a **Senha Numérica** (48 dígitos) em um lugar fora do PC antes de continuar. Não coloque essa chave em arquivo do repositório nem em chat. Com conta Microsoft, ela também fica em https://account.microsoft.com/devices/recoverykey. Com máquina da empresa, pode estar no Azure AD/Intune; confirme com a TI.
+
+### Opção A: suspender (recomendado)
+
+O disco continua criptografado, mas o Windows não pede a chave durante N reinicializações. Depois disso a proteção volta sozinha, já com o novo estado do Secure Boot.
+
+```powershell
+Suspend-BitLocker -MountPoint C: -RebootCount 3
+```
+
+`-RebootCount 0` deixa suspenso até você reativar manualmente com `Resume-BitLocker -MountPoint C:`.
+
+### Opção B: desativar por completo
+
+Descriptografa o disco inteiro. Demora (de minutos a horas, conforme o tamanho do disco) e deixa o disco sem proteção. Use só se a opção A não funcionar e se a política da empresa permitir.
+
+```powershell
+Disable-BitLocker -MountPoint C:
+```
+
+Equivalente: `manage-bde -off C:`.
+
+Acompanhe o progresso até chegar em `Totalmente Descriptografado` / `Porcentagem Criptografada: 0,0%`:
+
+```powershell
+manage-bde -status C:
+```
+
+Não mexa na BIOS enquanto a descriptografia estiver em andamento.
+
+Pela interface: Painel de Controle > Sistema e Segurança > Criptografia de Unidade de Disco BitLocker > Desativar o BitLocker. No Windows 11 Home o caminho é Configurações > Privacidade e segurança > Criptografia do dispositivo > Desativado.
+
+### Reativar depois
+
+```powershell
+Enable-BitLocker -MountPoint C: -TpmProtector -UsedSpaceOnly
+Add-BitLockerKeyProtector -MountPoint C: -RecoveryPasswordProtector
+```
+
+Guarde a nova senha numérica que o segundo comando mostrar.
+
 ## Próximos passos
 
-1. Confira se o BitLocker ainda está suspenso. Se já tiver reiniciado, suspenda de novo:
+1. Resolva o BitLocker como descrito na seção [BitLocker](#bitlocker). Se já tiver reiniciado depois de suspender, suspenda de novo:
    ```powershell
    manage-bde -status
-   Suspend-BitLocker -MountPoint C: -RebootCount 2
+   Suspend-BitLocker -MountPoint C: -RebootCount 3
    ```
 2. Entre na BIOS: Configurações > Sistema > Recuperação > Inicialização avançada > Reiniciar agora > Solucionar problemas > Opções avançadas > Configurações de Firmware UEFI.
 3. Na BIOS, defina **Secure Boot = Disabled** e salve (F10).
@@ -78,7 +132,7 @@ Instalação: `C:\Program Files (x86)\com0com` (com0com 3.0, driver **não assin
 bcdedit /set testsigning off
 ```
 
-Depois reative o Secure Boot na BIOS. O BitLocker volta a proteger sozinho quando acaba a contagem de reinicializações; para voltar na hora, rode `Resume-BitLocker -MountPoint C:`.
+Depois reative o Secure Boot na BIOS. Antes disso, suspenda o BitLocker de novo (`Suspend-BitLocker -MountPoint C: -RebootCount 2`), porque a mudança no Secure Boot também dispara o pedido da chave. Se o BitLocker foi desativado por completo, reative seguindo [Reativar depois](#reativar-depois).
 
 ## Alternativa sem driver
 
