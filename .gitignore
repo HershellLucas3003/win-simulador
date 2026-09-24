@@ -1,0 +1,10 @@
+node_modules
+dist
+logs
+config/camera.json
+.cache
+.ftp-root
+config/settings.json
+config/events.json
+config/equipment-state.json
+config/scenarios
